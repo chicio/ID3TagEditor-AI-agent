@@ -8,37 +8,35 @@ import * as readline from 'readline';
 
 const runChat = async () => {
     console.log('Caricamento indice FAISS...');
+    
     const embeddings = new OllamaEmbeddings({
         model: "codellama:7b",
         keepAlive: "30m",
     });
+
     const vectorStore = await FaissStore.load("faiss_index", embeddings);
 
-    // Configura il modello di chat
     const model = new ChatOllama({
         model: "codellama:7b",
         keepAlive: "30m",
         streaming: true,
     });
 
-    // Crea il prompt template per il RAG
     const prompt = PromptTemplate.fromTemplate(`
     You're an expert programmer. Use the information to answer question about the ID3TagEditor codebase, how I can improve it and 
-    useful information about it.
+    useful information about it. Answer 'I don't know' if there is no useful information in the context.
     
     Context: {context}
     Question: {question}
     
     Answer:`);
 
-    // Crea la catena RAG
     const chain = await createStuffDocumentsChain({
         llm: model,
         prompt,
         outputParser: new StringOutputParser(),
     });
 
-    // Configura l'interfaccia readline
     const rl = readline.createInterface({
         input: process.stdin,
         output: process.stdout
@@ -46,7 +44,6 @@ const runChat = async () => {
 
     console.log('Chat started... Use /stop for exit');
 
-    // Loop principale della chat
     const askQuestion = () => {
         rl.question('Question: ', async (question) => {
             if (question.toLowerCase() === '/stop') {
@@ -56,13 +53,20 @@ const runChat = async () => {
             }
 
             try {
-                // Recupera i documenti rilevanti
-                const docs = await vectorStore.similaritySearch(question, 10);
+                console.log('\n-------------------');
+                const docsWithScores = await vectorStore.similaritySearchWithScore(question, 10);
+                
+                const threshold = 0.7;
+                const filteredDocs = docsWithScores
+                    .filter(([_, score]) => score >= threshold)
+                    .map(([doc, score]) => {
+                        doc.metadata.score = score;
+                        return doc;
+                    });
 
-                // Esegue la catena RAG
                 const response = await chain.invoke({
                     question,
-                    context: docs,
+                    context: filteredDocs,
                 });
 
                 console.log('\nAnswer:', response);
@@ -70,7 +74,7 @@ const runChat = async () => {
                 
                 askQuestion();
             } catch (error) {
-                console.error('Errore:', error);
+                console.error('❌ Errore:', error);
                 askQuestion();
             }
         });
@@ -79,4 +83,7 @@ const runChat = async () => {
     askQuestion();
 };
 
-runChat().catch(console.error); 
+runChat().catch(error => {
+    console.error('❌ Fatal error:', error);
+    process.exit(1);
+}); 
