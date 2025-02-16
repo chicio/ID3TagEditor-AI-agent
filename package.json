@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "faiss": "ts-node faiss.ts"
+    "faiss": "ts-node faiss.ts",
+    "chat": "ts-node chat.ts"
   },
   "keywords": [],
   "author": "",
