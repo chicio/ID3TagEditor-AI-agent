@@ -44,19 +44,10 @@ const groupDocumentByPaths = (documents: Document[]): Map<string, Document[]> =>
 }
 
 const createIndex = async () => {
-  console.log('starting load codebase...')
   const documents = await loadCodebase();
-  console.log('codebase loaded...')
-
-  console.log('starting split...', SupportedTextSplitterLanguages)
   const splittedDocuments = await splitDocuments(documents)
-  console.log('split completed...')
-
-  console.log('group splitted documents by paths...')
   const groupedDocuments = groupDocumentByPaths(splittedDocuments)
-  console.log('groups created...')
 
-  console.log('starting FAISS index creation...')
   const embeddings = new OllamaEmbeddings({ 
     model: "codellama:7b", 
     keepAlive: "30m",
@@ -64,7 +55,6 @@ const createIndex = async () => {
   const vectorStore = new FaissStore(embeddings, {});
 
   for await (const [path, documents] of groupedDocuments) {
-    console.log(`Adding documents from ${path}`)
     try {
       await vectorStore.addDocuments(documents)
       console.log(`✅ Added ${documents.length} chunks from ${path}`)
@@ -74,8 +64,9 @@ const createIndex = async () => {
   }
 
   await vectorStore.save("faiss_index");
-  console.log("FAISS Index created and saved.");
 };
 
 // Esegui la creazione dell'indice
+console.log("Starting FAISS Index creation.");
 createIndex().catch(console.error);
+console.log("FAISS Index created and saved.");
